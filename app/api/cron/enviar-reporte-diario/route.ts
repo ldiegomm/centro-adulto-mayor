@@ -7,15 +7,18 @@ export async function GET(request: Request) {
     if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    if (!process.env.NEXT_PUBLIC_URL) {
+      return NextResponse.json({ 
+        error: 'NEXT_PUBLIC_URL no está configurado' 
+      }, { status: 500 });
+    }
     
     // 2. Obtener fecha de hoy
     const hoy = new Date().toISOString().split('T')[0];
     
     // 3. Llamar al endpoint que envía el email
-    const baseUrl = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}` 
-      : 'http://localhost:3000';
-    
+    const baseUrl = process.env.VERCEL_URL;
     const response = await fetch(`${baseUrl}/api/emails/reporte-medicamentos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
