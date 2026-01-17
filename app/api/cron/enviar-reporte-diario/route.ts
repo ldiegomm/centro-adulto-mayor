@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 export async function GET(request: Request) {
   console.log('========================================');
   console.log('CRON EJECUTADO - Inicio');
-  console.log('VERCEL_URL:', process.env.VERCEL_URL);
+  console.log('SITIO_URL:', process.env.SITIO_URL);
   console.log('========================================');
   
   try {
@@ -19,15 +19,15 @@ export async function GET(request: Request) {
     }
     console.log('✅ Autorización correcta');
     
-    // 2. Validar que exista VERCEL_URL
-    console.log('2. Validando VERCEL_URL...');
-    if (!process.env.VERCEL_URL) {
-      console.log('❌ VERCEL_URL no configurado');
+    // 2. Validar que exista SITIO_URL
+    console.log('2. Validando SITIO_URL...');
+    if (!process.env.SITIO_URL) {
+      console.log('❌ SITIO_URL no configurado');
       return NextResponse.json({ 
-        error: 'VERCEL_URL no está configurado' 
+        error: 'SITIO_URL no está configurado' 
       }, { status: 500 });
     }
-    console.log('✅ VERCEL_URL configurado:', process.env.VERCEL_URL);
+    console.log('✅ SITIO_URL configurado:', process.env.SITIO_URL);
     
     // 3. Obtener fecha de hoy
     console.log('3. Obteniendo fecha...');
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
     
     // 4. Llamar al endpoint que envía el email
     console.log('4. Preparando fetch...');
-    const baseUrl = process.env.VERCEL_URL;
+    const baseUrl = process.env.SITIO_URL;
     const url = `${baseUrl}/api/emails/reporte-medicamentos`;
     console.log('URL completa:', url);
     
