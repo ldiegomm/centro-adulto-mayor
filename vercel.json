@@ -1,6 +1,6 @@
 {
   "crons": [{
     "path": "/api/cron/enviar-reporte-diario",
-    "schedule": "0 15 * * *"
+    "schedule": "0 18 * * *"
   }]
 }

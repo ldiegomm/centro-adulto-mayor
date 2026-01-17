@@ -1,32 +1,53 @@
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
+  console.log('========================================');
+  console.log('CRON EJECUTADO - Inicio');
+  console.log('VERCEL_URL:', process.env.VERCEL_URL);
+  console.log('========================================');
+  
   try {
     // 1. Seguridad: Verificar que la petición viene de Vercel Cron
+    console.log('1. Verificando autorización...');
     const authHeader = request.headers.get('authorization');
+    console.log('Auth header:', authHeader);
+    console.log('Expected:', `Bearer ${process.env.CRON_SECRET}`);
+    
     if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+      console.log('❌ Autorización fallida');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    if (!process.env.NEXT_PUBLIC_URL) {
+    console.log('✅ Autorización correcta');
+    
+    // 2. Validar que exista VERCEL_URL
+    console.log('2. Validando VERCEL_URL...');
+    if (!process.env.VERCEL_URL) {
+      console.log('❌ VERCEL_URL no configurado');
       return NextResponse.json({ 
-        error: 'NEXT_PUBLIC_URL no está configurado' 
+        error: 'VERCEL_URL no está configurado' 
       }, { status: 500 });
     }
+    console.log('✅ VERCEL_URL configurado:', process.env.VERCEL_URL);
     
-    // 2. Obtener fecha de hoy
+    // 3. Obtener fecha de hoy
+    console.log('3. Obteniendo fecha...');
     const hoy = new Date().toISOString().split('T')[0];
+    console.log('Fecha:', hoy);
     
-    // 3. Llamar al endpoint que envía el email
+    // 4. Llamar al endpoint que envía el email
+    console.log('4. Preparando fetch...');
     const baseUrl = process.env.VERCEL_URL;
-   console.log('Intentando fetch a:', `${baseUrl}/api/emails/reporte-medicamentos`);
-
-    const response = await fetch(`${baseUrl}/api/emails/reporte-medicamentos`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fecha: hoy })
+    const url = `${baseUrl}/api/emails/reporte-medicamentos`;
+    console.log('URL completa:', url);
+    
+    console.log('5. Ejecutando fetch...');
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fecha: hoy })
     });
-
+    
+    console.log('6. Fetch completado');
     console.log('Response status:', response.status);
     console.log('Response headers:', response.headers);
 
