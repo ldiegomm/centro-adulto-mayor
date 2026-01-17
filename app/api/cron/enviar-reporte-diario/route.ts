@@ -19,13 +19,32 @@ export async function GET(request: Request) {
     
     // 3. Llamar al endpoint que envía el email
     const baseUrl = process.env.VERCEL_URL;
+   console.log('Intentando fetch a:', `${baseUrl}/api/emails/reporte-medicamentos`);
+
     const response = await fetch(`${baseUrl}/api/emails/reporte-medicamentos`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fecha: hoy })
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fecha: hoy })
     });
-    
-    const result = await response.json();
+
+    console.log('Response status:', response.status);
+    console.log('Response headers:', response.headers);
+
+    const responseText = await response.text();
+    console.log('Response text:', responseText.substring(0, 200));
+
+    let result;
+    try {
+    result = JSON.parse(responseText);
+    } catch (e) {
+    console.error('Error parsing JSON:', e);
+    console.error('Response was:', responseText);
+    return NextResponse.json({ 
+        error: 'El endpoint devolvió contenido inválido',
+        status: response.status,
+        content: responseText.substring(0, 500)
+    }, { status: 500 });
+    }
     
     if (!response.ok) {
       return NextResponse.json({ 
