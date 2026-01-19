@@ -1,18 +1,33 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-function createSupabaseClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+let supabaseInstance: SupabaseClient | null = null
 
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.error('Missing Supabase environment variables:', {
-      hasUrl: !!supabaseUrl,
-      hasKey: !!supabaseAnonKey
-    })
-    throw new Error('Missing Supabase environment variables')
+function getSupabase(): SupabaseClient {
+  if (!supabaseInstance) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error('Missing Supabase environment variables')
+    }
+
+    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey)
   }
 
-  return createClient(supabaseUrl, supabaseAnonKey)
+  return supabaseInstance
 }
 
-export const supabase = createSupabaseClient()
+// Export como Proxy para que funcione con la sintaxis actual
+export const supabase = new Proxy({} as SupabaseClient, {
+  get(target, prop) {
+    const client = getSupabase()
+    const value = client[prop as keyof SupabaseClient]
+    
+    // Si es una función, bindearla al cliente
+    if (typeof value === 'function') {
+      return value.bind(client)
+    }
+    
+    return value
+  }
+})
