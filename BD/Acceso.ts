@@ -2,7 +2,7 @@ import { Pool } from 'pg';
 
 // Pool de conexiones a PostgreSQL (Supabase)
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: process.env.DATABASE_POSTGRES_URL,
   ssl: {
     rejectUnauthorized: false
   }
