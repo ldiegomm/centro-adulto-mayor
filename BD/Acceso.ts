@@ -1,39 +1,108 @@
-import { Pool } from 'pg';
-
-// Pool de conexiones a PostgreSQL (Supabase)
-const pool = new Pool({
-  connectionString: process.env.DATABASE_POSTGRES_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
-});
+import { supabase } from '@/lib/supabase';
 
 /**
- * Ejecuta una query directa
+ * Ejecuta una query usando Supabase Client
  */
-export async function executeQuery<T = any>(
+export async function executeSupabaseQuery<T = any>(
   query: string,
   params: any[] = []
 ): Promise<T> {
-  const client = await pool.connect();
-  try {
-    const result = await client.query(query, params);
-    return result.rows as T;
-  } finally {
-    client.release();
-  }
+  const { data, error } = await supabase.rpc('execute_sql', {
+    query_text: query,
+    query_params: params
+  });
+
+  if (error) throw error;
+  return data as T;
 }
 
 /**
- * Ejecuta una función (equivalente a SP en PostgreSQL)
+ * Helper para obtener datos de una tabla usando Supabase
  */
-export async function executeFunction<T = any>(
-  functionName: string,
-  params: any[] = []
-): Promise<T> {
-  const placeholders = params.map((_, i) => `$${i + 1}`).join(',');
-  const query = `SELECT * FROM ${functionName}(${placeholders})`;
-  return executeQuery<T>(query, params);
+export async function getFromTable<T = any>(
+  tableName: string,
+  options?: {
+    select?: string;
+    filter?: Record<string, any>;
+    order?: { column: string; ascending?: boolean };
+    limit?: number;
+  }
+): Promise<T[]> {
+  let query = supabase.from(tableName).select(options?.select || '*');
+
+  // Aplicar filtros
+  if (options?.filter) {
+    Object.entries(options.filter).forEach(([key, value]) => {
+      query = query.eq(key, value);
+    });
+  }
+
+  // Aplicar orden
+  if (options?.order) {
+    query = query.order(options.order.column, {
+      ascending: options.order.ascending ?? true
+    });
+  }
+
+  // Aplicar límite
+  if (options?.limit) {
+    query = query.limit(options.limit);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return data as T[];
 }
 
-export default pool;
+/**
+ * Helper para insertar datos
+ */
+export async function insertIntoTable<T = any>(
+  tableName: string,
+  data: Record<string, any> | Record<string, any>[]
+): Promise<T[]> {
+  const { data: result, error } = await supabase
+    .from(tableName)
+    .insert(data)
+    .select();
+
+  if (error) throw error;
+  return result as T[];
+}
+
+/**
+ * Helper para actualizar datos
+ */
+export async function updateTable<T = any>(
+  tableName: string,
+  data: Record<string, any>,
+  filter: Record<string, any>
+): Promise<T[]> {
+  let query = supabase.from(tableName).update(data);
+
+  Object.entries(filter).forEach(([key, value]) => {
+    query = query.eq(key, value);
+  });
+
+  const { data: result, error } = await query.select();
+  if (error) throw error;
+  return result as T[];
+}
+
+/**
+ * Helper para eliminar datos
+ */
+export async function deleteFromTable(
+  tableName: string,
+  filter: Record<string, any>
+): Promise<void> {
+  let query = supabase.from(tableName).delete();
+
+  Object.entries(filter).forEach(([key, value]) => {
+    query = query.eq(key, value);
+  });
+
+  const { error } = await query;
+  if (error) throw error;
+}
+

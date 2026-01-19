@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
-import { executeQuery } from '@/BD/Acceso';
+import { supabase } from '@/lib/supabase';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -14,53 +14,80 @@ export async function POST(request: Request) {
     
     const { fecha } = await request.json();
     
-    // 1. Query: Obtener medicamentos del día según frecuencia semanal
-    const medicamentos = await executeQuery(`
-      SELECT 
-        am.id,
-        am.nombre,
-        am.apellido1,
-        am.apellido2,
-        am.cedula,
-        tm.nombre_medicamento,
-        tm.dosis,
-        tm.via_administracion,
-        tm.horario_manana,
-        tm.horario_mediodia,
-        tm.horario_tarde,
-        tm.horario_noche,
-        tm.indicaciones
-      FROM toma_medicamentos tm
-      JOIN adultos_mayores am ON tm.adulto_mayor_id = am.id
-      WHERE tm.estado = 'Activo'
-        AND am.estado = 'Activo'
-        AND (
-          (EXTRACT(DOW FROM $1::date) = 0 AND tm.domingo) OR
-          (EXTRACT(DOW FROM $1::date) = 1 AND tm.lunes) OR
-          (EXTRACT(DOW FROM $1::date) = 2 AND tm.martes) OR
-          (EXTRACT(DOW FROM $1::date) = 3 AND tm.miercoles) OR
-          (EXTRACT(DOW FROM $1::date) = 4 AND tm.jueves) OR
-          (EXTRACT(DOW FROM $1::date) = 5 AND tm.viernes) OR
-          (EXTRACT(DOW FROM $1::date) = 6 AND tm.sabado)
-        )
-      ORDER BY am.nombre, am.apellido1, tm.nombre_medicamento
-    `, [fecha]);
+    // Obtener día de la semana (0 = domingo, 6 = sábado)
+    const fechaObj = new Date(fecha);
+    const diaSemana = fechaObj.getDay();
     
-    if (medicamentos.length === 0) {
-      return NextResponse.json({ 
-        success: true, 
-        message: 'No hay medicamentos programados para este día' 
-      });
-    }
-    
-    // 2. Agrupar medicamentos por adulto mayor
-    const adultosMedicamentos: any = {};
-    medicamentos.forEach((med: any) => {
-      const key = med.id;
+    // Mapear día de semana a columnas booleanas de la tabla
+    const columnaDia = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'][diaSemana];
+   // 1. Query usando Supabase Client 
+  const { data: medicamentos, error } = await supabase
+  .from('toma_medicamentos')
+  .select(`
+    nombre_medicamento,
+    dosis,
+    via_administracion,
+    horario_manana,
+    horario_mediodia,
+    horario_tarde,
+    horario_noche,
+    indicaciones,
+    adultos_mayores (
+      id,
+      nombre,
+      apellido1,
+      apellido2,
+      cedula
+    )
+  `)
+  .eq('estado', 'Activo')
+  .eq('adultos_mayores.estado', 'Activo')
+  .eq(columnaDia, true);
+
+if (error) {
+  console.error('Error Supabase:', error);
+  return NextResponse.json({ 
+    error: error.message 
+  }, { status: 500 });
+}
+
+if (!medicamentos || medicamentos.length === 0) {
+  return NextResponse.json({ 
+    success: true, 
+    message: 'No hay medicamentos programados para este día' 
+  });
+}
+
+// Ordenar manualmente en JavaScript después de obtener los datos
+const medicamentosOrdenados = medicamentos.sort((a: any, b: any) => {
+  const adultoA = a.adultos_mayores;
+  const adultoB = b.adultos_mayores;
+  
+  // Ordenar por nombre
+  if (adultoA.nombre !== adultoB.nombre) {
+    return adultoA.nombre.localeCompare(adultoB.nombre);
+  }
+  
+  // Si el nombre es igual, ordenar por apellido1
+  if (adultoA.apellido1 !== adultoB.apellido1) {
+    return adultoA.apellido1.localeCompare(adultoB.apellido1);
+  }
+  
+  // Si nombre y apellido1 son iguales, ordenar por medicamento
+  return a.nombre_medicamento.localeCompare(b.nombre_medicamento);
+});
+
+// 2. Agrupar medicamentos por adulto mayor
+const adultosMedicamentos: any = {};
+medicamentosOrdenados.forEach((med: any) => {
+  const adulto = med.adultos_mayores;
+  const key = adulto.id;
+  
+      
       if (!adultosMedicamentos[key]) {
         adultosMedicamentos[key] = {
-          nombre: `${med.nombre} ${med.apellido1} ${med.apellido2 || ''}`.trim(),
-          cedula: med.cedula,
+          nombre: `${adulto.nombre} ${adulto.apellido1} ${adulto.apellido2 || ''}`.trim(),
+          cedula: adulto.cedula,
           medicamentos: []
         };
       }
@@ -119,16 +146,15 @@ export async function POST(request: Request) {
     `;
     
     // 4. Enviar email
-    
-    const { data, error } = await resend.emails.send({
-    from: 'Centro Adulto Mayor <onboarding@resend.dev>',
-    to: [process.env.EMAIL_NOTIFICACIONES],
-    subject: `Reporte de Medicamentos - ${fecha}`,
-    html: emailHTML
+    const { data, error: emailError } = await resend.emails.send({
+      from: 'Centro Adulto Mayor <onboarding@resend.dev>',
+      to: [process.env.EMAIL_NOTIFICACIONES],
+      subject: `Reporte de Medicamentos - ${fecha}`,
+      html: emailHTML
     });
     
-    if (error) {
-      return NextResponse.json({ error }, { status: 400 });
+    if (emailError) {
+      return NextResponse.json({ error: emailError }, { status: 400 });
     }
     
     return NextResponse.json({ 
