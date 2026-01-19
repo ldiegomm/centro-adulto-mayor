@@ -1,11 +1,18 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Crear cliente solo si las variables están disponibles
-// Durante build time esto será null, pero en runtime funcionará
-export const supabase = 
-  typeof window !== 'undefined' || process.env.NEXT_PUBLIC_SUPABASE_URL
-    ? createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-      )
-    : null as any
+function createSupabaseClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('Missing Supabase environment variables:', {
+      hasUrl: !!supabaseUrl,
+      hasKey: !!supabaseAnonKey
+    })
+    throw new Error('Missing Supabase environment variables')
+  }
+
+  return createClient(supabaseUrl, supabaseAnonKey)
+}
+
+export const supabase = createSupabaseClient()
